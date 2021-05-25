@@ -92,6 +92,9 @@ pub trait ServerConfig {
     /// Defaults to "`plaintext`" (no encryption, seed is in the clear).
     fn kms_protection(&self) -> &KmsProtection;
 
+    /// [Optional] If present the server will also serve clients over TCP on the same port.
+    fn tcp_listener(&self) -> bool;
+
     /// [Optional] If present, the TCP port to respond to Google-style HTTP "legacy health check".
     /// This is a *very* simplistic check, it emits a fixed HTTP response to all TCP connections.
     /// https://cloud.google.com/load-balancing/docs/health-checks#legacy-health-checks

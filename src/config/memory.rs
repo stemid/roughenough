@@ -29,6 +29,7 @@ pub struct MemoryConfig {
     pub batch_size: u8,
     pub status_interval: Duration,
     pub kms_protection: KmsProtection,
+    pub tcp_listener: bool,
     pub health_check_port: Option<u16>,
     pub client_stats: bool,
     pub fault_percentage: u8,
@@ -44,6 +45,7 @@ impl MemoryConfig {
             batch_size: DEFAULT_BATCH_SIZE,
             status_interval: DEFAULT_STATUS_INTERVAL,
             kms_protection: KmsProtection::Plaintext,
+            tcp_listener: false,
             health_check_port: None,
             client_stats: false,
             fault_percentage: 0
@@ -74,6 +76,10 @@ impl ServerConfig for MemoryConfig {
 
     fn kms_protection(&self) -> &KmsProtection {
         &self.kms_protection
+    }
+
+    fn tcp_listener(&self) -> bool {
+        self.tcp_listener
     }
 
     fn health_check_port(&self) -> Option<u16> {

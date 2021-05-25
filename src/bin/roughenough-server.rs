@@ -65,7 +65,10 @@ fn display_config(server: &Server, cfg: &dyn ServerConfig) {
     info!("Online public key          : {}", server.get_online_key());
     info!("Max response batch size    : {}", cfg.batch_size());
     info!("Status updates every       : {} seconds", cfg.status_interval().as_secs());
-    info!("Server listening on        : {}:{}", cfg.interface(), cfg.port());
+    info!("Server listening on        : udp:{}:{}", cfg.interface(), cfg.port());
+    if cfg.tcp_listener() {
+        info!("Server listening on        : tcp:{}:{}", cfg.interface(), cfg.port());
+    }
     if let Some(hc_port) = cfg.health_check_port() {
         info!("TCP health check           : {}:{}", cfg.interface(), hc_port);
     } else {

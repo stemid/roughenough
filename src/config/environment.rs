@@ -32,6 +32,7 @@ use crate::Error;
 ///   batch_size        | `ROUGHENOUGH_BATCH_SIZE`
 ///   status_interval   | `ROUGHENOUGH_STATUS_INTERVAL`
 ///   kms_protection    | `ROUGHENOUGH_KMS_PROTECTION`
+///   tcp_listener      | `ROUGHENOUGH_TCP_LISTENER`
 ///   health_check_port | `ROUGHENOUGH_HEALTH_CHECK_PORT`
 ///   client_stats      | `ROUGHENOUGH_CLIENT_STATS`
 ///   fault_percentage  | `ROUGHENOUGH_FAULT_PERCENTAGE`
@@ -43,6 +44,7 @@ pub struct EnvironmentConfig {
     batch_size: u8,
     status_interval: Duration,
     kms_protection: KmsProtection,
+    tcp_listener: bool,
     health_check_port: Option<u16>,
     client_stats: bool,
     fault_percentage: u8,
@@ -54,6 +56,7 @@ const ROUGHENOUGH_SEED: &str = "ROUGHENOUGH_SEED";
 const ROUGHENOUGH_BATCH_SIZE: &str = "ROUGHENOUGH_BATCH_SIZE";
 const ROUGHENOUGH_STATUS_INTERVAL: &str = "ROUGHENOUGH_STATUS_INTERVAL";
 const ROUGHENOUGH_KMS_PROTECTION: &str = "ROUGHENOUGH_KMS_PROTECTION";
+const ROUGHENOUGH_TCP_LISTENER: &str = "ROUGHENOUGH_TCP_LISTENER";
 const ROUGHENOUGH_HEALTH_CHECK_PORT: &str = "ROUGHENOUGH_HEALTH_CHECK_PORT";
 const ROUGHENOUGH_CLIENT_STATS: &str = "ROUGHENOUGH_CLIENT_STATS";
 const ROUGHENOUGH_FAULT_PERCENTAGE: &str = "ROUGHENOUGH_FAULT_PERCENTAGE";
@@ -67,6 +70,7 @@ impl EnvironmentConfig {
             batch_size: DEFAULT_BATCH_SIZE,
             status_interval: DEFAULT_STATUS_INTERVAL,
             kms_protection: KmsProtection::Plaintext,
+            tcp_listener: false,
             health_check_port: None,
             client_stats: false,
             fault_percentage: 0,
@@ -106,6 +110,12 @@ impl EnvironmentConfig {
                 .parse()
                 .unwrap_or_else(|_| panic!("invalid kms_protection value: {}", kms_protection));
         }
+
+        if let Ok(mut tcp_listener) = env::var(ROUGHENOUGH_TCP_LISTENER) {
+            tcp_listener.make_ascii_lowercase();
+
+            cfg.tcp_listener = tcp_listener == "yes" || tcp_listener == "on" || tcp_listener == "true";
+        };
 
         if let Ok(health_check_port) = env::var(ROUGHENOUGH_HEALTH_CHECK_PORT) {
             let val: u16 = health_check_port
@@ -154,6 +164,10 @@ impl ServerConfig for EnvironmentConfig {
 
     fn kms_protection(&self) -> &KmsProtection {
         &self.kms_protection
+    }
+
+    fn tcp_listener(&self) -> bool {
+        self.tcp_listener
     }
 
     fn health_check_port(&self) -> Option<u16> {

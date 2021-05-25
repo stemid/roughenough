@@ -41,6 +41,7 @@ pub struct FileConfig {
     batch_size: u8,
     status_interval: Duration,
     kms_protection: KmsProtection,
+    tcp_listener: bool,
     health_check_port: Option<u16>,
     client_stats: bool,
     fault_percentage: u8,
@@ -72,6 +73,7 @@ impl FileConfig {
             batch_size: DEFAULT_BATCH_SIZE,
             status_interval: DEFAULT_STATUS_INTERVAL,
             kms_protection: KmsProtection::Plaintext,
+            tcp_listener: false,
             health_check_port: None,
             client_stats: false,
             fault_percentage: 0,
@@ -96,6 +98,10 @@ impl FileConfig {
                         panic!("invalid kms_protection value: {:?}", value)
                     });
                     config.kms_protection = val
+                }
+                "tcp_listener" => {
+                    let val = value.as_str().unwrap().to_ascii_lowercase();
+                    config.tcp_listener = val == "yes" || val == "on" || val == "true";
                 }
                 "health_check_port" => {
                     let val = value.as_i64().unwrap() as u16;
@@ -145,6 +151,10 @@ impl ServerConfig for FileConfig {
 
     fn kms_protection(&self) -> &KmsProtection {
         &self.kms_protection
+    }
+
+    fn tcp_listener(&self) -> bool {
+        self.tcp_listener
     }
 
     fn health_check_port(&self) -> Option<u16> {

@@ -43,6 +43,7 @@ use crate::{Error, RtMessage, Tag, MIN_REQUEST_LENGTH};
 const EVT_MESSAGE: Token = Token(0);
 const EVT_STATUS_UPDATE: Token = Token(1);
 const EVT_HEALTH_CHECK: Token = Token(2);
+const EVT_TCP_MESSAGE: Token = Token(3);
 
 // Canned response to health check request
 const HTTP_RESPONSE: &str = "HTTP/1.1 200 OK\nContent-Length: 0\nConnection: close\n\n";
@@ -63,6 +64,7 @@ pub struct Server {
     cert_bytes: Vec<u8>,
 
     socket: UdpSocket,
+    tcp_listener: Option<TcpListener>,
     health_listener: Option<TcpListener>,
     poll_duration: Option<Duration>,
     grease: Grease,
@@ -118,6 +120,22 @@ impl Server {
         poll.register(&timer, EVT_STATUS_UPDATE, Ready::readable(), PollOpt::edge())
             .unwrap();
 
+        let tcp_listener = if config.tcp_listener() {
+            let tcp_sock_addr: SocketAddr = format!("{}:{}", config.interface(), config.port())
+                .parse()
+                .unwrap();
+
+            let listener = TcpListener::bind(&tcp_sock_addr)
+                .expect("Failed to bind TCP listener");
+
+            poll.register(&listener, EVT_TCP_MESSAGE, Ready::readable(), PollOpt::edge())
+                .unwrap();
+
+            Some(listener)
+        } else {
+            None
+        };
+
         let health_listener = if let Some(hc_port) = config.health_check_port() {
             let hc_sock_addr: SocketAddr = format!("{}:{}", config.interface(), hc_port)
                 .parse()
@@ -150,6 +168,7 @@ impl Server {
             cert_bytes,
 
             socket,
+            tcp_listener,
             health_listener,
 
             poll_duration,
@@ -217,6 +236,10 @@ impl Server {
                     if socket_now_empty {
                         break;
                     }
+                },
+                EVT_TCP_MESSAGE => loop {
+                    info!("EVT_TCP_MESSAGE received");
+                    break;
                 },
                 EVT_HEALTH_CHECK => self.handle_health_check(),
                 EVT_STATUS_UPDATE => self.handle_status_update(),
