@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::iter::Iterator;
-use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket, TcpStream};
 
 use clap::{App, Arg};
 use roughenough::merkle::root_from_paths;
@@ -58,6 +58,48 @@ fn receive_response(sock: &mut UdpSocket) -> RtMessage {
     let resp_len = sock.recv_from(&mut buf).unwrap().0;
 
     RtMessage::from_bytes(&buf[0..resp_len]).unwrap()
+}
+
+fn process_response(resp: RtMessage, verbose: bool, json: bool, time_format: &str, pub_key: Option<Vec<u8>>, nonce: &[64], use_utc: bool) -> ! {
+    let ParsedResponse {
+        verified,
+        midpoint,
+        radius,
+    } = ResponseHandler::new(pub_key.clone(), resp.clone(), nonce).extract_time();
+
+    let map = resp.into_hash_map();
+    let index = map[&Tag::INDX]
+        .as_slice()
+        .read_u32::<LittleEndian>()
+        .unwrap();
+
+    let seconds = midpoint / 10_u64.pow(6);
+    let nsecs = (midpoint - (seconds * 10_u64.pow(6))) * 10_u64.pow(3);
+    let verify_str = if verified { "Yes" } else { "No" };
+
+    let out = if use_utc {
+        let ts = Utc.timestamp(seconds as i64, nsecs as u32);
+        ts.format(time_format).to_string()
+    } else {
+        let ts = Local.timestamp(seconds as i64, nsecs as u32);
+        ts.format(time_format).to_string()
+    };
+
+    if verbose {
+        eprintln!(
+            "Received time from server: midpoint={:?}, radius={:?}, verified={} (merkle_index={})",
+            out, radius, verify_str, index
+        );
+    }
+
+    if json {
+        println!(
+            r#"{{ "midpoint": {:?}, "radius": {:?}, "verified": {}, "merkle_index": {} }}"#,
+            out, radius, verified, index
+        );
+    } else {
+        println!("{}", out);
+    }
 }
 
 fn stress_test_forever(addr: &SocketAddr) -> ! {
@@ -222,6 +264,10 @@ fn main() {
       .required(true)
       .help("The Roughtime server port to connect to.")
       .takes_value(true))
+    .arg(Arg::with_name("tcp")
+        .short("t")
+        .long("tcp")
+        .help("Connect over TCP instead of UDP"))
     .arg(Arg::with_name("verbose")
       .short("v")
       .long("verbose")
@@ -269,6 +315,7 @@ fn main() {
 
     let host = matches.value_of("host").unwrap();
     let port = value_t_or_exit!(matches.value_of("port"), u16);
+    let tcp = matches.is_present("tcp");
     let verbose = matches.is_present("verbose");
     let json = matches.is_present("json");
     let num_requests = value_t_or_exit!(matches.value_of("num-requests"), u16) as usize;
@@ -312,45 +359,7 @@ fn main() {
     for (nonce, _, mut socket) in requests {
         let resp = receive_response(&mut socket);
 
-        let ParsedResponse {
-            verified,
-            midpoint,
-            radius,
-        } = ResponseHandler::new(pub_key.clone(), resp.clone(), nonce).extract_time();
-
-        let map = resp.into_hash_map();
-        let index = map[&Tag::INDX]
-            .as_slice()
-            .read_u32::<LittleEndian>()
-            .unwrap();
-
-        let seconds = midpoint / 10_u64.pow(6);
-        let nsecs = (midpoint - (seconds * 10_u64.pow(6))) * 10_u64.pow(3);
-        let verify_str = if verified { "Yes" } else { "No" };
-
-        let out = if use_utc {
-            let ts = Utc.timestamp(seconds as i64, nsecs as u32);
-            ts.format(time_format).to_string()
-        } else {
-            let ts = Local.timestamp(seconds as i64, nsecs as u32);
-            ts.format(time_format).to_string()
-        };
-
-        if verbose {
-            eprintln!(
-                "Received time from server: midpoint={:?}, radius={:?}, verified={} (merkle_index={})",
-                out, radius, verify_str, index
-            );
-        }
-
-        if json {
-            println!(
-                r#"{{ "midpoint": {:?}, "radius": {:?}, "verified": {}, "merkle_index": {} }}"#,
-                out, radius, verified, index
-            );
-        } else {
-            println!("{}", out);
-        }
+        process_response(resp, verbose, json, time_format, pub_key, nonce, use_utc);
     }
 }
 
